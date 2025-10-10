@@ -28,7 +28,7 @@ def _risk_exec_pairs():
     # exec_plan = os.getenv("EXEC_PLAN") or os.getenv("EXEC_ORDER") or "all"  # 执行序号默认 all
     #调试
     risk_plan = "单券集中度"  # ✅ 写死风控类型
-    exec_plan = "4"  # ✅ 写死执行序号
+    exec_plan = "3"  # ✅ 写死执行序号
 
     risk_types = parse_risk_types(str(DATA_FILE), risk_plan)
     print(f"[DEBUG] RISK_TYPES plan={risk_plan!r} -> {risk_types}")
