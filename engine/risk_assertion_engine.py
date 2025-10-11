@@ -41,6 +41,221 @@ class RiskAssertionEngine:
         self.quantity_comparison_summary = []
         self.failed_cases_summary = []
 
+    # def print_and_assert_risk_details_multi(
+    #         self,
+    #         expected_checks: list,
+    #         current_group_key: str,
+    #         expected_count: int,
+    #         phase: str = "提交",  # ✅ 阶段参数，默认“提交”，审批阶段传 "审批"
+    # ):
+    #     """
+    #     遍历页面所有风控检查项，与预期断言结果逐项对比
+    #     """
+    #     self.page_obj.wait_for_timeout(5000)
+    #
+    #     # ------------------------- 🆕 新增：结果型检查点名单（只对比检查结果，不做数值断言） -------------------------
+    #     RESULT_ONLY_CHECKPOINTS = {
+    #         "组合DV01检查",
+    #         "债券投资范围检查",
+    #         "永续债检查",
+    #         "反向交易检查",
+    #         "同向交易检查",
+    #         "债券黑名单检查",
+    #         "债券主承销商检查",
+    #     }
+    #
+    #     # --------------------------------------------------------------------------------------------------
+    #
+    #     # ===================== 预处理：Excel 标记跳过的检查点 =====================
+    #     skip_items, normal_items = [], []
+    #     for item in expected_checks:
+    #         expected_result_raw = normalize_text(item.get("check_result") or item.get("expected_result") or "")
+    #         if expected_result_raw in SKIP_RESULT_MARKERS:
+    #             skip_items.append(item)
+    #         else:
+    #             normal_items.append(item)
+    #
+    #     for item in skip_items:
+    #         self.assertion_results.append({
+    #             "group_key": current_group_key,
+    #             "check_point_name": item.get("check_point_name", ""),
+    #             "actual_result": "不检查",
+    #             "actual_description": "Excel 标记为不触发/不检查/跳过，未执行页面比对。",
+    #             "expected_value": "--",
+    #             "actual_value": "--",
+    #             "status": "⏭ 跳过",
+    #             "阶段": phase,
+    #         })
+    #
+    #     expected_checks = normal_items
+    #     # ========================================================================
+    #
+    #     # ✅ 取到最新的弹窗（风控弹窗）
+    #     overlays = self.page_obj.locator("div.el-overlay:visible")
+    #     last_overlay = overlays.nth(overlays.count() - 1)
+    #
+    #     # ✅ 表头
+    #     header_cells = last_overlay.locator("thead tr th")
+    #     header_count = header_cells.count()
+    #     header_texts = [header_cells.nth(j).inner_text().strip() for j in range(header_count)]
+    #
+    #     # ✅ 数据行
+    #     rows = last_overlay.locator("table.el-table__body tbody tr")
+    #     count = rows.count()
+    #     print(f"📊 当前页面风控检查项数量：{count}")
+    #
+    #     for i in range(count):
+    #         row = rows.nth(i)
+    #         cells = row.locator("td")
+    #         cell_texts = [cells.nth(j).inner_text().strip() for j in range(cells.count())]
+    #         print(f"🧩 第 {i + 1} 行实际列数: {cells.count()}，内容为: {cell_texts}")
+    #
+    #         headers = ["申请单编号", "检查结果", "检查点名称", "检查组合", "资产代码", "资产简称", "阈值", "计算值",
+    #                    "结果描述"]
+    #         print(f"\n🧾 第 {i + 1} 行检查项明细：")
+    #         print(tabulate([cell_texts], headers=headers, tablefmt="grid"))
+    #
+    #         check_point_name = normalize_text(cell_texts[2])
+    #         actual_result = normalize_text(cell_texts[1])  # ✅ 取检查结果列
+    #         actual_description = cell_texts[8]
+    #
+    #         matched = False
+    #         for expected in expected_checks:
+    #             expected_name = normalize_text(expected["check_point_name"])
+    #             if expected_name != check_point_name:
+    #                 continue
+    #
+    #             expected_result = normalize_text(expected.get("check_result"))
+    #
+    #             try:
+    #                 # ===== 1) 按阶段取预期值 =====
+    #                 if phase == "提交":
+    #                     expected_value_raw = str(
+    #                         expected.get("提交阶段预期值") or expected.get("expected_value", "")).strip()
+    #                 elif phase == "审批":
+    #                     expected_value_raw = str(
+    #                         expected.get("审批阶段预期值") or expected.get("expected_value", "")).strip()
+    #                 else:
+    #                     expected_value_raw = str(expected.get("expected_value", "")).strip()
+    #
+    #                 expected_value = extract_number_smart(expected_value_raw)
+    #
+    #                 # ------------------------- 🆕 新增：兜底逻辑（检查结果断言模式） -------------------------
+    #                 if expected_value is None or check_point_name in RESULT_ONLY_CHECKPOINTS:
+    #                     expected_text = normalize_text(expected.get("check_result", ""))
+    #                     actual_text = normalize_text(actual_result)
+    #                     print(f"🧮 文本断言模式：实际={actual_text}, 预期={expected_text}")
+    #
+    #                     assert actual_text == expected_text, f"❌ 文本不一致：预期={expected_text}, 实际={actual_text}"
+    #
+    #                     self.assertion_results.append({
+    #                         "group_key": current_group_key,
+    #                         "check_point_name": cell_texts[2],
+    #                         "actual_result": actual_text,
+    #                         "actual_description": actual_description,
+    #                         "expected_value": expected_text,
+    #                         "actual_value": actual_text,
+    #                         "status": "✅ 成功",
+    #                         "阶段": phase,
+    #                     })
+    #                     matched = True
+    #                     break
+    #                 # ---------------------------------------------------------------------
+    #
+    #                 # ===== 2) 默认逻辑：取【计算值】做数值断言 =====
+    #                 if "计算值" in header_texts:
+    #                     calc_index = header_texts.index("计算值")
+    #                 else:
+    #                     raise Exception("❌ 表格中未找到 '计算值' 列，请确认前端页面结构是否变更")
+    #
+    #                 actual_value_raw = cell_texts[calc_index].strip()
+    #                 actual_value = extract_number_smart(actual_value_raw)
+    #
+    #                 # 兜底从描述提取
+    #                 remark = ""
+    #                 if actual_value is None:
+    #                     fallback = extract_number_smart(actual_description)
+    #                     if fallback is not None:
+    #                         actual_value = fallback
+    #                         remark = "实际值来自结果描述"
+    #
+    #                 # 状态一致性
+    #                 assert actual_result == expected_result, f"❌ 状态不一致：预期={expected_result}, 实际={actual_result}"
+    #
+    #                 # 数值断言
+    #                 assert expected_value is not None and actual_value is not None, (
+    #                     f"❌ 无法提取数值进行断言：expected={expected_value}, actual={actual_value}"
+    #                 )
+    #
+    #                 print(f"✅ 检查点 {cell_texts[2]} 数值断言通过")
+    #                 self.assertion_results.append({
+    #                     "group_key": current_group_key,
+    #                     "check_point_name": cell_texts[2],
+    #                     "actual_result": actual_result,
+    #                     "actual_description": actual_description,
+    #                     "expected_value": expected_value,
+    #                     "actual_value": actual_value,
+    #                     "status": "✅ 成功",
+    #                     "阶段": phase,
+    #                     "备注": remark,
+    #                 })
+    #
+    #             except AssertionError as e:
+    #                 print(str(e))
+    #                 self.failed_asserts.append(str(e))
+    #                 self.assertion_results.append({
+    #                     "group_key": current_group_key,
+    #                     "check_point_name": cell_texts[2],
+    #                     "actual_result": actual_result,
+    #                     "actual_description": actual_description,
+    #                     "expected_value": expected_value_raw if expected_value is None else expected_value,
+    #                     "actual_value": actual_result if expected_value is None else actual_value,
+    #                     "status": "❌ 失败",
+    #                     "阶段": phase,
+    #                 })
+    #             matched = True
+    #             break
+    #
+    #         if not matched:
+    #             msg = f"🚫 非本轮指令的检查点，已跳过断言：页面={check_point_name}（行号={i}）"
+    #             print(msg)
+    #             self.assertion_results.append({
+    #                 "group_key": current_group_key,
+    #                 "check_point_name": check_point_name,
+    #                 "actual_result": actual_result,
+    #                 "actual_description": actual_description,
+    #                 "expected_value": "--",
+    #                 "actual_value": cell_texts[7].strip(),
+    #                 "status": "🚫 不适用",
+    #                 "阶段": phase,
+    #                 "备注": "白名单命中但指令序号不匹配",
+    #             })
+    #
+    #     # ✅ 数量对比收集保持不变
+    #     expected_point_names = self.process_expected_checkpoints(expected_checks, expected_count)
+    #     actual_point_names = []
+    #     for i in range(count):
+    #         row = rows.nth(i)
+    #         cells = row.locator("td")
+    #         point_name = normalize_text(cells.nth(2).inner_text().strip())
+    #         actual_point_names.append(point_name)
+    #
+    #     if not hasattr(self, "quantity_comparison_summary"):
+    #         self.quantity_comparison_summary = []
+    #
+    #     self.quantity_comparison_summary.append({
+    #         "用例编号": current_group_key,
+    #         "类型": "预期",
+    #         "数量": len(expected_point_names),
+    #         "风控点": "、".join(expected_point_names),
+    #     })
+    #     self.quantity_comparison_summary.append({
+    #         "用例编号": current_group_key,
+    #         "类型": "实际",
+    #         "数量": len(actual_point_names),
+    #         "风控点": "、".join(actual_point_names),
+    #     })
+
     def print_and_assert_risk_details_multi(
             self,
             expected_checks: list,
@@ -53,7 +268,34 @@ class RiskAssertionEngine:
         """
         self.page_obj.wait_for_timeout(5000)
 
-        # ------------------------- 🆕 新增：结果型检查点名单（只对比检查结果，不做数值断言） -------------------------
+        # ------------------------- 🆕 新增：风控点断言模式映射表（名称取检查点名称） -------------------------
+        CHECKPOINT_ASSERTION_MODE = {
+            # 数值型（取计算值列）
+            "单券集中度检查": "numeric",
+            "单券集中度检查_多指令": "numeric",
+            "单券集中度检查_审批中": "numeric",
+            "债券投资总规模检查": "numeric",
+
+            "组合DV01检查": "numeric",
+            "组合久期检查": "numeric",
+            "组合债券浮盈检查": "numeric",
+            "债券交易价格偏离检查": "numeric",
+
+            # 描述型（取结果描述）
+            "债券可用检查": "description",
+
+
+            # 结果型（只看检查结果）
+            "债券投资范围检查": "result",
+            "永续债检查": "result",
+            "反向交易检查": "result",
+            "同向交易检查": "result",
+            "债券黑名单检查": "result",
+            "债券主承销商检查": "result",
+        }
+        # ---------------------------------------------------------------------------
+
+        # ------------------------- 原逻辑保留 -------------------------
         RESULT_ONLY_CHECKPOINTS = {
             "组合DV01检查",
             "债券投资范围检查",
@@ -64,9 +306,6 @@ class RiskAssertionEngine:
             "债券主承销商检查",
         }
 
-        # --------------------------------------------------------------------------------------------------
-
-        # ===================== 预处理：Excel 标记跳过的检查点 =====================
         skip_items, normal_items = [], []
         for item in expected_checks:
             expected_result_raw = normalize_text(item.get("check_result") or item.get("expected_result") or "")
@@ -88,18 +327,14 @@ class RiskAssertionEngine:
             })
 
         expected_checks = normal_items
-        # ========================================================================
+        # ------------------------------------------------------------------
 
-        # ✅ 取到最新的弹窗（风控弹窗）
         overlays = self.page_obj.locator("div.el-overlay:visible")
         last_overlay = overlays.nth(overlays.count() - 1)
-
-        # ✅ 表头
         header_cells = last_overlay.locator("thead tr th")
         header_count = header_cells.count()
         header_texts = [header_cells.nth(j).inner_text().strip() for j in range(header_count)]
 
-        # ✅ 数据行
         rows = last_overlay.locator("table.el-table__body tbody tr")
         count = rows.count()
         print(f"📊 当前页面风控检查项数量：{count}")
@@ -116,7 +351,7 @@ class RiskAssertionEngine:
             print(tabulate([cell_texts], headers=headers, tablefmt="grid"))
 
             check_point_name = normalize_text(cell_texts[2])
-            actual_result = normalize_text(cell_texts[1])  # ✅ 取检查结果列
+            actual_result = normalize_text(cell_texts[1])
             actual_description = cell_texts[8]
 
             matched = False
@@ -128,7 +363,6 @@ class RiskAssertionEngine:
                 expected_result = normalize_text(expected.get("check_result"))
 
                 try:
-                    # ===== 1) 按阶段取预期值 =====
                     if phase == "提交":
                         expected_value_raw = str(
                             expected.get("提交阶段预期值") or expected.get("expected_value", "")).strip()
@@ -140,65 +374,86 @@ class RiskAssertionEngine:
 
                     expected_value = extract_number_smart(expected_value_raw)
 
-                    # ------------------------- 🆕 新增：兜底逻辑（检查结果断言模式） -------------------------
-                    if expected_value is None or check_point_name in RESULT_ONLY_CHECKPOINTS:
-                        expected_text = normalize_text(expected.get("check_result", ""))
-                        actual_text = normalize_text(actual_result)
-                        print(f"🧮 文本断言模式：实际={actual_text}, 预期={expected_text}")
+                    # 🆕 根据风控点类型决定断言逻辑模式
+                    mode = CHECKPOINT_ASSERTION_MODE.get(check_point_name, "numeric")
+                    print(f"🧭 当前检查点断言模式: {mode}")  # ✅ 修改：输出当前模式
 
-                        assert actual_text == expected_text, f"❌ 文本不一致：预期={expected_text}, 实际={actual_text}"
+                    # ============================ 🧩 模式分支 ============================
 
+                    if mode == "result":  # ✅ 修改：结果型，只比对检查结果
+                        assert actual_result == expected_result, f"❌ 检查结果不一致：预期={expected_result}, 实际={actual_result}"
                         self.assertion_results.append({
                             "group_key": current_group_key,
                             "check_point_name": cell_texts[2],
-                            "actual_result": actual_text,
+                            "actual_result": actual_result,
                             "actual_description": actual_description,
-                            "expected_value": expected_text,
-                            "actual_value": actual_text,
+                            "expected_value": expected_result,
+                            "actual_value": actual_result,
                             "status": "✅ 成功",
                             "阶段": phase,
                         })
-                        matched = True
-                        break
-                    # ---------------------------------------------------------------------
 
-                    # ===== 2) 默认逻辑：取【计算值】做数值断言 =====
-                    if "计算值" in header_texts:
-                        calc_index = header_texts.index("计算值")
-                    else:
-                        raise Exception("❌ 表格中未找到 '计算值' 列，请确认前端页面结构是否变更")
+                    elif mode == "description":  # ✅ 修改：描述型，从描述中提取数值
+                        actual_value = extract_number_smart(actual_description)
+                        print(f"🧮 描述提取值：实际={actual_value}，预期={expected_value}")
+                        assert expected_value is not None and actual_value is not None, (
+                            f"❌ 无法提取数值进行断言：expected={expected_value}, actual={actual_value}"
+                        )
+                        tolerance = 1e-8
+                        assert abs(actual_value - expected_value) < tolerance, (
+                            f"❌ 描述数值不一致：预期={expected_value}, 实际={actual_value}"
+                        )
+                        self.assertion_results.append({
+                            "group_key": current_group_key,
+                            "check_point_name": cell_texts[2],
+                            "actual_result": actual_result,
+                            "actual_description": actual_description,
+                            "expected_value": expected_value,
+                            "actual_value": actual_value,
+                            "status": "✅ 成功",
+                            "阶段": phase,
+                            "备注": "结果描述提取",
+                        })
 
-                    actual_value_raw = cell_texts[calc_index].strip()
-                    actual_value = extract_number_smart(actual_value_raw)
+                    else:  # ✅ 修改：默认 numeric 模式（取计算值列）
+                        if "计算值" in header_texts:
+                            calc_index = header_texts.index("计算值")
+                        else:
+                            raise Exception("❌ 表格中未找到 '计算值' 列，请确认前端页面结构是否变更")
 
-                    # 兜底从描述提取
-                    remark = ""
-                    if actual_value is None:
-                        fallback = extract_number_smart(actual_description)
-                        if fallback is not None:
-                            actual_value = fallback
-                            remark = "实际值来自结果描述"
+                        actual_value_raw = cell_texts[calc_index].strip()
+                        actual_value = extract_number_smart(actual_value_raw)
 
-                    # 状态一致性
-                    assert actual_result == expected_result, f"❌ 状态不一致：预期={expected_result}, 实际={actual_result}"
+                        if actual_value is None:
+                            fallback = extract_number_smart(actual_description)
+                            if fallback is not None:
+                                actual_value = fallback
 
-                    # 数值断言
-                    assert expected_value is not None and actual_value is not None, (
-                        f"❌ 无法提取数值进行断言：expected={expected_value}, actual={actual_value}"
-                    )
+                        print(f"🧪 获取预期值 => 检查点={check_point_name}，最终值={expected_value}")
+                        print(f"🧮 提取值：页面实际值 = {actual_value}，预期值 = {expected_value}")
 
-                    print(f"✅ 检查点 {cell_texts[2]} 数值断言通过")
-                    self.assertion_results.append({
-                        "group_key": current_group_key,
-                        "check_point_name": cell_texts[2],
-                        "actual_result": actual_result,
-                        "actual_description": actual_description,
-                        "expected_value": expected_value,
-                        "actual_value": actual_value,
-                        "status": "✅ 成功",
-                        "阶段": phase,
-                        "备注": remark,
-                    })
+                        assert actual_result == expected_result, f"❌ 状态不一致：预期={expected_result}, 实际={actual_result}"
+                        assert expected_value is not None and actual_value is not None, (
+                            f"❌ 无法提取数值进行断言：expected={expected_value}, actual={actual_value}"
+                        )
+                        tolerance = 1e-8
+                        assert abs(actual_value - expected_value) < tolerance, (
+                            f"❌ 数值不一致：预期={expected_value}, 实际={actual_value}"
+                        )
+                        # ✅ 修改：新增断言成功提示
+                        print(f"✅ 检查点 {check_point_name} 全部通过")
+                        self.assertion_results.append({
+                            "group_key": current_group_key,
+                            "check_point_name": cell_texts[2],
+                            "actual_result": actual_result,
+                            "actual_description": actual_description,
+                            "expected_value": expected_value,
+                            "actual_value": actual_value,
+                            "status": "✅ 成功",
+                            "阶段": phase,
+                        })
+
+                    # ============================ END ============================
 
                 except AssertionError as e:
                     print(str(e))
@@ -231,7 +486,7 @@ class RiskAssertionEngine:
                     "备注": "白名单命中但指令序号不匹配",
                 })
 
-        # ✅ 数量对比收集保持不变
+        # ✅ 数量比对逻辑保持不变
         expected_point_names = self.process_expected_checkpoints(expected_checks, expected_count)
         actual_point_names = []
         for i in range(count):
